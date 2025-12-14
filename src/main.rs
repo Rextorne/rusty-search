@@ -31,7 +31,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// --- 3. Die Such-Logik (Hier kommst du ins Spiel) ---
 fn search_in_file(path: &Path, pattern: &str) -> Result<()> {
     let file = File::open(path).expect("Unable to open file");
 
