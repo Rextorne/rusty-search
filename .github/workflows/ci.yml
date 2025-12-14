@@ -1,0 +1,55 @@
+name: Rust CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Job 1: Qualitätssicherung (Läuft schnell auf Linux)
+  check-quality:
+    name: Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Check Formatting
+        run: cargo fmt -- --check
+        
+      - name: Run Clippy (Linter)
+        run: cargo clippy -- -D warnings
+        
+      - name: Run Tests
+        run: cargo test
+
+  # Job 2: Build Binaries (Läuft parallel auf 3 OS)
+  build-release:
+    name: Build Release (${{ matrix.os }})
+    needs: check-quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build Release
+        run: cargo build --release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rusty-search-${{ matrix.os }}
+          path: |
+            target/release/rusty-search
+            target/release/rusty-search.exe
