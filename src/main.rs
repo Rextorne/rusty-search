@@ -24,7 +24,9 @@ fn main() -> Result<()> {
         };
 
         if entry.file_type().is_file() {
-            search_in_file(entry.path(), &args.pattern)?;
+            if let Err(e) = search_in_file(entry.path(), &args.pattern) {
+                eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
+            }
         }
     }
 
@@ -32,7 +34,7 @@ fn main() -> Result<()> {
 }
 
 fn search_in_file(path: &Path, pattern: &str) -> Result<()> {
-    let file = File::open(path).expect("Unable to open file");
+    let file = File::open(path)?;
 
     let reader = BufReader::new(file);
 
