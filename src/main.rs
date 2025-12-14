@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
+use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -20,20 +21,22 @@ fn main() -> Result<()> {
     println!("--- Rusty-Search v0.1 ---");
     println!("Suche nach '{}' in: {:?}\n", args.pattern, args.path);
 
-    for entry in WalkDir::new(&args.path) {
+    let entries = WalkDir::new(&args.path);
+
+    entries.into_iter().par_bridge().for_each(|entry| {
         let entry = match entry {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(_) => return,
         };
 
         if !entry.file_type().is_file() {
-            continue;
+            return;
         }
 
         if let Err(e) = search_in_file(entry.path(), &args.pattern, args.ignore_case) {
             eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
         }
-    }
+    });
 
     Ok(())
 }
