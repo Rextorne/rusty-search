@@ -7,3 +7,4 @@ edition = "2024"
 clap = { version = "4.5", features = ["derive"] } # CLI Parser
 walkdir = "2.5"                                   # Rekursiver Datei-Iterator
 anyhow = "1.0"                                    # Einfaches Error Handling
+colored = "3.0.0"
