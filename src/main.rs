@@ -23,10 +23,12 @@ fn main() -> Result<()> {
             Err(_) => continue,
         };
 
-        if entry.file_type().is_file() {
-            if let Err(e) = search_in_file(entry.path(), &args.pattern) {
-                eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
-            }
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        if let Err(e) = search_in_file(entry.path(), &args.pattern) {
+            eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
         }
     }
 
