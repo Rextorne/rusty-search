@@ -8,6 +8,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 #[derive(Parser)]
+#[command(version, about, long_about = None)]
 struct Cli {
     pattern: String,
     path: std::path::PathBuf,
