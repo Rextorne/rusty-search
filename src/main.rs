@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -29,30 +30,39 @@ enum Algo {
 fn main() -> Result<()> {
     let args = Cli::parse();
 
-    println!("--- Rusty-Search v1.1.0 ---");
+    println!("--- Rusty-Search v1.1.1 ---");
     println!("Suche nach '{}' in: {:?}\n", args.pattern, args.path);
 
-    let entries = WalkDir::new(&args.path);
+    let files: Vec<_> = WalkDir::new(&args.path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .collect();
 
-    entries.into_iter().par_bridge().for_each(|entry| {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => return,
-        };
+    let total_count = files.len() as u64;
 
-        if !entry.file_type().is_file() {
-            return;
+    let pb = ProgressBar::new(total_count);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
+            )?
+            .progress_chars("#>-"),
+    );
+
+    files.par_iter().for_each(|entry| {
+        if let Err(e) = search_in_file(entry.path(), &args, &pb) {
+            pb.println(format!("Fehler in Datei {:?}: {}", entry.path(), e));
         }
-
-        if let Err(e) = search_in_file(entry.path(), &args) {
-            eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
-        }
+        pb.inc(1);
     });
+
+    pb.finish_with_message("Fertig!");
 
     Ok(())
 }
 
-fn search_in_file(path: &Path, args: &Cli) -> Result<()> {
+fn search_in_file(path: &Path, args: &Cli, pb: &ProgressBar) -> Result<()> {
     let ignore_case = args.ignore_case;
     let pattern = &args.pattern;
     let algorithm = args.algo;
@@ -67,7 +77,12 @@ fn search_in_file(path: &Path, args: &Cli) -> Result<()> {
     };
 
     for (index, line) in reader.lines().enumerate() {
-        let line = line?;
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => {
+                continue;
+            }
+        };
         let line_num = index + 1;
 
         let found = match algorithm {
@@ -82,13 +97,14 @@ fn search_in_file(path: &Path, args: &Cli) -> Result<()> {
 
             Algo::Boyer => algorithms::boyer_moore_contains(line.as_bytes(), pattern.as_bytes()),
         };
+
         if found {
-            println!(
+            pb.println(format!(
                 "{}:{}:{}",
                 path.display().to_string().magenta(),
                 line_num.to_string().green(),
                 line
-            );
+            ));
         }
     }
 
