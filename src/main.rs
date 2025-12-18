@@ -1,11 +1,13 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use colored::Colorize;
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use walkdir::WalkDir;
+
+mod algorithms;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -14,12 +16,20 @@ struct Cli {
     path: std::path::PathBuf,
     #[arg(short, long)]
     ignore_case: bool,
+    #[arg(short, long, value_enum, default_value_t = Algo::Regex)]
+    algo: Algo,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum Algo {
+    Regex,
+    Boyer,
 }
 
 fn main() -> Result<()> {
     let args = Cli::parse();
 
-    println!("--- Rusty-Search v0.1 ---");
+    println!("--- Rusty-Search v1.1.0 ---");
     println!("Suche nach '{}' in: {:?}\n", args.pattern, args.path);
 
     let entries = WalkDir::new(&args.path);
@@ -34,7 +44,7 @@ fn main() -> Result<()> {
             return;
         }
 
-        if let Err(e) = search_in_file(entry.path(), &args.pattern, args.ignore_case) {
+        if let Err(e) = search_in_file(entry.path(), &args) {
             eprintln!("Fehler in Datei {:?}: {}", entry.path(), e);
         }
     });
@@ -42,7 +52,11 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn search_in_file(path: &Path, pattern: &str, ignore_case: bool) -> Result<()> {
+fn search_in_file(path: &Path, args: &Cli) -> Result<()> {
+    let ignore_case = args.ignore_case;
+    let pattern = &args.pattern;
+    let algorithm = args.algo;
+
     let file = File::open(path)?;
     let reader = BufReader::new(file);
 
@@ -56,13 +70,19 @@ fn search_in_file(path: &Path, pattern: &str, ignore_case: bool) -> Result<()> {
         let line = line?;
         let line_num = index + 1;
 
-        let check_line = if ignore_case {
-            line.to_lowercase()
-        } else {
-            line.clone()
-        };
+        let found = match algorithm {
+            Algo::Regex => {
+                let check_line = if ignore_case {
+                    line.to_lowercase()
+                } else {
+                    line.clone()
+                };
+                check_line.contains(&check_pattern)
+            }
 
-        if check_line.contains(&check_pattern) {
+            Algo::Boyer => algorithms::boyer_moore_contains(line.as_bytes(), pattern.as_bytes()),
+        };
+        if found {
             println!(
                 "{}:{}:{}",
                 path.display().to_string().magenta(),
